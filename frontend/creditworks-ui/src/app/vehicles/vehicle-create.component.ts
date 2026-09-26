@@ -1,6 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Manufacturer } from '../core/models';
 import { ErrorListComponent } from '../shared/error-list.component';
@@ -14,6 +15,7 @@ import { ErrorListComponent } from '../shared/error-list.component';
 export class VehicleCreateComponent implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   manufacturers: Manufacturer[] = [];
   maxYear = new Date().getFullYear() + 1;
@@ -28,10 +30,12 @@ export class VehicleCreateComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    this.api.getManufacturers().subscribe({
-      next: m => this.manufacturers = m,
-      error: () => this.errors = ['Failed to load manufacturers.']
-    });
+    this.api.getManufacturers()
+      .pipe(finalize(() => this.cdr.detectChanges()))
+      .subscribe({
+        next: (m) => { this.manufacturers = m; },
+        error: () => { this.errors = ['Failed to load manufacturers.']; }
+      });
   }
 
   submit(form: NgForm): void {
@@ -43,9 +47,10 @@ export class VehicleCreateComponent implements OnInit {
     this.submitting = true;
     this.api.createVehicle(this.model).subscribe({
       next: () => this.router.navigate(['/vehicles']),
-      error: err => {
+      error: (err) => {
         this.submitting = false;
         this.errors = err?.error?.errors ?? ['Failed to save vehicle.'];
+        this.cdr.detectChanges();
       }
     });
   }
