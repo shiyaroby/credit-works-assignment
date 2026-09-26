@@ -1,0 +1,46 @@
+<section class="page">
+  <header class="page-header">
+    <h2>Add vehicle</h2>
+    <a routerLink="/vehicles" class="btn btn-secondary">Back to list</a>
+  </header>
+
+  <form #f="ngForm" class="form" (ngSubmit)="submit(f)" novalidate>
+    <label>
+      Owner's name
+      <input type="text" name="ownerName" [(ngModel)]="model.ownerName"
+             required maxlength="200" autocomplete="off">
+    </label>
+
+    <label>
+      Manufacturer
+      <select name="manufacturerId" [(ngModel)]="model.manufacturerId" required>
+        <option [ngValue]="0" disabled>— choose —</option>
+        @for (m of manufacturers; track m.id) {
+          <option [ngValue]="m.id">{{ m.name }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      Year of manufacture
+      <input type="number" name="yearOfManufacture"
+             [(ngModel)]="model.yearOfManufacture"
+             required min="1886" [max]="maxYear">
+    </label>
+
+    <label>
+      Weight (kg)
+      <input type="number" step="0.01" name="weightKg"
+             [(ngModel)]="model.weightKg" required min="0.01">
+    </label>
+
+    <app-error-list [errors]="errors"></app-error-list>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" [disabled]="submitting">
+        {{ submitting ? 'Saving…' : 'Save' }}
+      </button>
+      <a routerLink="/vehicles" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</section>

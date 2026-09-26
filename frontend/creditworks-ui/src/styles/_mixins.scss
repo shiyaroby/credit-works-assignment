@@ -1,0 +1,26 @@
+@use "variables" as v;
+
+@mixin card {
+  background: v.$color-surface;
+  border: 1px solid v.$color-border;
+  border-radius: v.$radius-md;
+  box-shadow: v.$shadow-sm;
+  padding: v.$space-lg;
+}
+
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  gap: v.$space-xs;
+  padding: v.$space-sm v.$space-md;
+  font-size: v.$font-size-base;
+  font-family: inherit;
+  border-radius: v.$radius-sm;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+  &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+@mixin respond($bp) { @media (max-width: $bp) { @content; } }

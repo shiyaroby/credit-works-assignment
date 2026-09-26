@@ -1,0 +1,15 @@
+@use "../../styles/variables" as v;
+@use "sass:color";
+
+.error-list {
+  margin: v.$space-md 0;
+  padding: v.$space-sm v.$space-md v.$space-sm v.$space-xl;
+  background: v.$color-danger-light;
+  border: 1px solid color.adjust(v.$color-danger, $lightness: 45%);
+  border-left: 4px solid v.$color-danger;
+  border-radius: v.$radius-sm;
+  color: v.$color-danger;
+  font-size: v.$font-size-sm;
+
+  li + li { margin-top: v.$space-xs; }
+}

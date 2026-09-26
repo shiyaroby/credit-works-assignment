@@ -1,0 +1,7 @@
+@use "../../styles/variables" as v;
+
+.page { display: grid; gap: v.$space-lg; }
+
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+}

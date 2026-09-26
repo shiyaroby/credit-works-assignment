@@ -1,0 +1,80 @@
+<section class="page">
+  <header class="page-header">
+    <h2>Vehicles</h2>
+    <div class="actions">
+      <a routerLink="/categories" class="btn btn-secondary">Manage categories</a>
+      <a routerLink="/vehicles/new" class="btn btn-primary">+ Add vehicle</a>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <span class="text-muted">Sort by:</span>
+    <div class="sort-group">
+      <button type="button" class="sort-btn"
+              [class.active]="sortBy === 'ownerName'"
+              (click)="setSort('ownerName')">
+        Owner {{ indicator('ownerName') }}
+      </button>
+      <button type="button" class="sort-btn"
+              [class.active]="sortBy === 'manufacturer'"
+              (click)="setSort('manufacturer')">
+        Manufacturer {{ indicator('manufacturer') }}
+      </button>
+      <button type="button" class="sort-btn"
+              [class.active]="sortBy === 'year'"
+              (click)="setSort('year')">
+        Year {{ indicator('year') }}
+      </button>
+      <button type="button" class="sort-btn"
+              [class.active]="sortBy === 'weight'"
+              (click)="setSort('weight')">
+        Weight {{ indicator('weight') }}
+      </button>
+    </div>
+  </div>
+
+  @if (loading) {
+    <p class="text-muted">Loading…</p>
+  }
+
+  <app-error-list [errors]="error ? [error] : []"></app-error-list>
+
+  @if (!loading) {
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Owner</th>
+          <th>Manufacturer</th>
+          <th>Year</th>
+          <th>Category</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (v of vehicles; track v.id) {
+          <tr>
+            <td>{{ v.ownerName }}</td>
+            <td>{{ v.manufacturerName }}</td>
+            <td>{{ v.yearOfManufacture }}</td>
+            <td class="category-cell">
+              <img class="icon"
+                   [src]="'icons/' + (v.categoryIcon || 'unknown.svg')"
+                   [alt]="v.categoryName || ''"
+                   [title]="v.categoryName || ''">
+              <span>{{ v.categoryName || '—' }}</span>
+            </td>
+            <td class="col-actions">
+              <button type="button" class="btn btn-danger btn-sm"
+                      (click)="remove(v.id)">Delete</button>
+            </td>
+          </tr>
+        }
+        @if (vehicles.length === 0) {
+          <tr>
+            <td colspan="5" class="empty">No vehicles yet.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>

@@ -1,0 +1,55 @@
+@use "../styles/variables" as v;
+@use "../styles/mixins" as m;
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$space-lg;
+  padding: v.$space-md v.$space-xl;
+  background: v.$color-primary;
+  color: #fff;
+  box-shadow: v.$shadow-sm;
+
+  @include m.respond(v.$bp-sm) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: v.$space-sm;
+
+  h1 { margin: 0; font-size: v.$font-size-lg; }
+}
+
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  filter: brightness(0) invert(1);
+}
+
+.app-nav {
+  display: flex;
+  gap: v.$space-md;
+
+  a {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+    padding: v.$space-xs v.$space-sm;
+    border-bottom: 2px solid transparent;
+
+    &:hover { color: #fff; }
+    &.active { color: #fff; border-bottom-color: #fff; }
+  }
+}
+
+.app-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: v.$space-xl;
+
+  @include m.respond(v.$bp-sm) { padding: v.$space-md; }
+}

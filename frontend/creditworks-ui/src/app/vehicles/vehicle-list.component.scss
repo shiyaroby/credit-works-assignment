@@ -1,0 +1,44 @@
+@use "../../styles/variables" as v;
+@use "../../styles/mixins" as m;
+
+.page { display: grid; gap: v.$space-lg; }
+
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: v.$space-md;
+  h2 { margin: 0; }
+  .actions { display: flex; gap: v.$space-sm; }
+  @include m.respond(v.$bp-sm) { flex-direction: column; align-items: flex-start; }
+}
+
+.toolbar {
+  display: flex; align-items: center; gap: v.$space-md; flex-wrap: wrap;
+}
+
+.sort-group {
+  display: inline-flex;
+  background: v.$color-surface;
+  border: 1px solid v.$color-border;
+  border-radius: v.$radius-md;
+  overflow: hidden;
+}
+
+.sort-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: v.$space-sm v.$space-md;
+  font: inherit;
+  font-size: v.$font-size-sm;
+  cursor: pointer;
+  color: v.$color-text-muted;
+  border-right: 1px solid v.$color-border;
+  &:last-child { border-right: none; }
+  &:hover { background: rgba(v.$color-primary, .06); color: v.$color-primary; }
+  &.active { background: v.$color-primary; color: #fff; font-weight: 600; }
+}
+
+.category-cell { display: flex; align-items: center; gap: v.$space-sm; }
+.col-actions { width: 120px; text-align: right; }
+.btn-sm { padding: v.$space-xs v.$space-sm; font-size: v.$font-size-sm; }
+.empty { text-align: center; color: v.$color-text-muted; padding: v.$space-xl; }

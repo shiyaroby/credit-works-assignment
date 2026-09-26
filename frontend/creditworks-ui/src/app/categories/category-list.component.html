@@ -1,0 +1,52 @@
+<section class="page">
+  <header class="page-header">
+    <h2>Categories</h2>
+    <a routerLink="/categories/new" class="btn btn-primary">+ New category</a>
+  </header>
+
+  <p class="hint text-muted">
+    Ranges must cover all weights from 0 kg with no gaps or overlaps.
+    The highest category must be unbounded.
+  </p>
+
+  @if (loading) {
+    <p class="text-muted">Loading…</p>
+  }
+
+  <app-error-list [errors]="error ? [error] : []"></app-error-list>
+
+  @if (!loading) {
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Min (kg)</th>
+          <th>Max (kg)</th>
+          <th>Icon</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (c of categories; track c.id) {
+          <tr>
+            <td>{{ c.name }}</td>
+            <td>{{ c.minWeightKg }}</td>
+            <td>{{ c.maxWeightKg !== null ? c.maxWeightKg : '∞' }}</td>
+            <td>
+              <img class="icon" [src]="'icons/' + c.iconName" [alt]="c.name">
+            </td>
+            <td class="col-actions">
+              <a [routerLink]="['/categories', c.id]" class="btn btn-secondary btn-sm">Edit</a>
+              <button type="button" class="btn btn-danger btn-sm" (click)="remove(c.id)">Delete</button>
+            </td>
+          </tr>
+        }
+        @if (categories.length === 0) {
+          <tr>
+            <td colspan="5" class="empty">No categories configured.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>

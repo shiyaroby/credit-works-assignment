@@ -1,0 +1,11 @@
+@use "../../styles/variables" as v;
+
+.page { display: grid; gap: v.$space-lg; }
+.page-header { display: flex; align-items: center; justify-content: space-between; }
+.icon-preview {
+  display: flex; align-items: center; gap: v.$space-sm;
+  padding: v.$space-sm v.$space-md;
+  border: 1px dashed v.$color-border;
+  border-radius: v.$radius-sm;
+  background: #fafbfc;
+}

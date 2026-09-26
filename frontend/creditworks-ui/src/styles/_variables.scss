@@ -1,0 +1,28 @@
+$color-primary:        #1976d2;
+$color-primary-dark:   #115293;
+$color-danger:         #b00020;
+$color-danger-light:   #fdecea;
+$color-text:           #1f2933;
+$color-text-muted:     #6b7280;
+$color-border:         #d9dde3;
+$color-bg:             #f4f6f9;
+$color-surface:        #ffffff;
+
+$space-xs: 0.25rem;
+$space-sm: 0.5rem;
+$space-md: 1rem;
+$space-lg: 1.5rem;
+$space-xl: 2rem;
+
+$radius-sm: 4px;
+$radius-md: 6px;
+$shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+
+$font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+$font-size-sm: 0.85rem;
+$font-size-base: 0.95rem;
+$font-size-lg: 1.15rem;
+$font-size-xl: 1.5rem;
+
+$bp-sm: 600px;
+$bp-md: 900px;
