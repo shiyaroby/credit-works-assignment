@@ -3,5 +3,6 @@
     <Project Path="backend/CreditWorks.Api/CreditWorks.Api.csproj" />
     <Project Path="backend/CreditWorks.Core/CreditWorks.Core.csproj" />
     <Project Path="backend/CreditWorks.Infrastructure/CreditWorks.Infrastructure.csproj" />
+    <Project Path="backend/CreditWorks.Tests/CreditWorks.Tests.csproj" />
   </Folder>
 </Solution>
