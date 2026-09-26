@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp",
+    "angular.ng-template",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-mssql.mssql",
+    "ms-azuretools.vscode-docker",
+    "editorconfig.editorconfig"
+  ]
+}

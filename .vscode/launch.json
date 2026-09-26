@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: CreditWorks.Api",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/backend/CreditWorks.Api/bin/Debug/net10.0/CreditWorks.Api.dll",
+      "cwd": "${workspaceFolder}/backend/CreditWorks.Api",
+      "env": { "ASPNETCORE_ENVIRONMENT": "Development" },
+      "launchSettingsProfile": "https",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      }
+    },
+    {
+      "name": "SPA: Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/frontend/creditworks-ui"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack",
+      "configurations": ["API: CreditWorks.Api", "SPA: Chrome"],
+      "stopAll": true
+    }
+  ]
+}
