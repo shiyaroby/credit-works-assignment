@@ -1,6 +1,7 @@
 using CreditWorks.Api.Contracts;
 using CreditWorks.Core.Interfaces;
 using CreditWorks.Core.Models;
+using CreditWorks.Core.Services;
 using CreditWorks.Core.Validation;
 using CreditWorks.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -27,28 +28,20 @@ public class VehiclesController : ControllerBase
         [FromQuery] string? dir = "asc")
     {
         var vehicles = await _db.Vehicles.AsNoTracking()
-            .Include(v => v.Manufacturer).ToListAsync();
+            .Include(v => v.Manufacturer)
+            .ToListAsync();
+
+        var sorted = VehicleSorter.Sort(vehicles, sortBy, dir).ToList();
+
         var categories = await _db.VehicleCategories.AsNoTracking().ToListAsync();
 
-        var projected = vehicles.Select(v =>
+        var projected = sorted.Select(v =>
         {
             var cat = _resolver.ResolveCategory(v.WeightKg, categories);
             return new VehicleDto(v.Id, v.OwnerName, v.ManufacturerId,
                 v.Manufacturer.Name, v.YearOfManufacture, v.WeightKg,
                 cat?.Id, cat?.Name, cat?.IconName);
         });
-
-        projected = (sortBy?.ToLower(), dir?.ToLower()) switch
-        {
-            ("manufacturer", "desc") => projected.OrderByDescending(v => v.ManufacturerName),
-            ("manufacturer", _)      => projected.OrderBy(v => v.ManufacturerName),
-            ("year", "desc")         => projected.OrderByDescending(v => v.YearOfManufacture),
-            ("year", _)              => projected.OrderBy(v => v.YearOfManufacture),
-            ("weight", "desc")       => projected.OrderByDescending(v => v.WeightKg),
-            ("weight", _)            => projected.OrderBy(v => v.WeightKg),
-            ("ownername", "desc")    => projected.OrderByDescending(v => v.OwnerName),
-            _                        => projected.OrderBy(v => v.OwnerName)
-        };
 
         return Ok(projected);
     }
