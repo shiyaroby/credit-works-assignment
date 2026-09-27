@@ -1,7 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { ErrorListComponent } from '../shared/error-list.component';
 
@@ -9,7 +9,7 @@ import { ErrorListComponent } from '../shared/error-list.component';
   standalone: true,
   imports: [FormsModule, RouterLink, ErrorListComponent],
   templateUrl: './category-edit.component.html',
-  styleUrls: ['./category-edit.component.scss']
+  styleUrls: ['./category-edit.component.scss'],
 })
 export class CategoryEditComponent implements OnInit {
   private api = inject(ApiService);
@@ -30,55 +30,54 @@ export class CategoryEditComponent implements OnInit {
     iconName: string;
   } = { name: '', minWeightKg: 0, maxWeightKg: null, iconName: 'light.svg' };
 
-  get isEdit(): boolean { return this.id !== null; }
+  get isEdit(): boolean {
+    return this.id !== null;
+  }
 
   ngOnInit(): void {
     const param = this.route.snapshot.paramMap.get('id');
     this.id = param ? Number(param) : null;
 
     if (!this.isEdit) {
-      // New category — just load icons
-      this.api.getIcons()
+      this.api
+        .getIcons()
         .pipe(finalize(() => this.cdr.detectChanges()))
         .subscribe({
           next: (i) => {
             this.icons = i;
             if (i.length) this.model.iconName = i[0];
           },
-          error: () => { this.errors = ['Failed to load icons.']; }
+          error: () => {
+            this.errors = ['Failed to load icons.'];
+          },
         });
       return;
     }
 
-    // Edit — load icons and categories together
     this.loading = true;
-    forkJoin({
-      icons: this.api.getIcons(),
-      categories: this.api.getCategories()
-    })
-      .pipe(finalize(() => {
+    this.api.getIcons().subscribe({
+      next: (icons) => {
+        this.icons = icons;
+        this.api.getCategories().subscribe({
+          next: (list) => {
+            const found = list.find((c) => c.id === this.id);
+            if (found) this.model = { ...found };
+            this.loading = false;
+            this.cdr.detectChanges();
+          },
+          error: () => {
+            this.errors = ['Failed to load category.'];
+            this.loading = false;
+            this.cdr.detectChanges();
+          },
+        });
+      },
+      error: () => {
+        this.errors = ['Failed to load icons.'];
         this.loading = false;
         this.cdr.detectChanges();
-      }))
-      .subscribe({
-        next: ({ icons, categories }) => {
-          this.icons = icons;
-          const found = categories.find(c => c.id === this.id);
-          if (found) {
-            this.model = {
-              name: found.name,
-              minWeightKg: found.minWeightKg,
-              maxWeightKg: found.maxWeightKg,
-              iconName: found.iconName
-            };
-          } else {
-            this.errors = ['Category not found.'];
-          }
-        },
-        error: () => {
-          this.errors = ['Failed to load category.'];
-        }
-      });
+      },
+    });
   }
 
   submit(form: NgForm): void {
@@ -95,7 +94,7 @@ export class CategoryEditComponent implements OnInit {
         this.model.maxWeightKg === null || (this.model.maxWeightKg as any) === ''
           ? null
           : this.model.maxWeightKg,
-      iconName: this.model.iconName
+      iconName: this.model.iconName,
     };
 
     this.submitting = true;
@@ -107,9 +106,23 @@ export class CategoryEditComponent implements OnInit {
       next: () => this.router.navigate(['/categories']),
       error: (err) => {
         this.submitting = false;
-        this.errors = err?.error?.errors ?? ['Save failed.'];
+        const body = err?.error;
+
+        if (body?.suggestedAction === 'bulk-edit' && this.isEdit) {
+          const proceed = confirm(
+            "Changing this category's weight range on its own would leave a gap " +
+              'or overlap until a neighbouring category is adjusted too.\n\n' +
+              'Open the bulk editor to change both rows in a single save?',
+          );
+          if (proceed) {
+            this.router.navigate(['/categories/bulk']);
+            return;
+          }
+        }
+
+        this.errors = body?.errors ?? ['Save failed.'];
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 }

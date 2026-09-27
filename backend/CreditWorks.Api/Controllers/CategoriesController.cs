@@ -4,6 +4,7 @@ using CreditWorks.Core.Validation;
 using CreditWorks.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace CreditWorks.Api.Controllers;
 
@@ -42,6 +43,11 @@ public class CategoriesController : ControllerBase
         if (basic.Any()) return BadRequest(new { errors = basic });
 
         var all = await _db.VehicleCategories.ToListAsync();
+
+        // For edits, check whether the range actually changed. If only name/icon changed,
+        // the update will always be valid — skip the conflict redirect path.
+        var existing = id is null ? null : all.FirstOrDefault(c => c.Id == id);
+
         var candidate = new VehicleCategory
         {
             Id = id ?? 0,
@@ -55,12 +61,35 @@ public class CategoriesController : ControllerBase
         workingSet.Add(candidate);
 
         var rangeErrors = CategoryRangeValidator.Validate(workingSet);
-        if (rangeErrors.Any()) return BadRequest(new { errors = rangeErrors });
+        if (rangeErrors.Any())
+        {
+            var isExistingEdit = existing is not null;
+            var rangeChanged = isExistingEdit &&
+                (existing!.MinWeightKg != candidate.MinWeightKg ||
+                 existing.MaxWeightKg != candidate.MaxWeightKg);
 
-        if (id is null) _db.VehicleCategories.Add(candidate);
+            if (isExistingEdit && rangeChanged)
+            {
+                return Conflict(new
+                {
+                    errors = new[] {
+                        "This boundary change can't be saved on its own because it would leave "
+                        + "a gap or overlap until a neighbouring category is adjusted too.",
+                        "Use 'Edit all' to change both rows in a single save." }
+                        .Concat(rangeErrors),
+                    suggestedAction = "bulk-edit"
+                });
+            }
+
+            return BadRequest(new { errors = rangeErrors });
+        }
+
+        if (id is null)
+        {
+            _db.VehicleCategories.Add(candidate);
+        }
         else
         {
-            var existing = all.FirstOrDefault(c => c.Id == id);
             if (existing is null) return NotFound();
             existing.Name = candidate.Name;
             existing.MinWeightKg = candidate.MinWeightKg;
@@ -88,14 +117,13 @@ public class CategoriesController : ControllerBase
             return BadRequest(new
             {
                 errors = new[] {
-                "Cannot delete the only category. Add a replacement first." }
+                    "Cannot delete the only category. Add a replacement first." }
             });
         }
 
         var errors = CategoryRangeValidator.Validate(remaining);
         if (errors.Any())
         {
-            // Structured response so the UI can guide the user
             return Conflict(new
             {
                 errors = new[] {
@@ -146,7 +174,15 @@ public class CategoriesController : ControllerBase
         var rangeErrors = CategoryRangeValidator.Validate(candidates);
         if (rangeErrors.Any()) return BadRequest(new { errors = rangeErrors });
 
-        await using var tx = await _db.Database.BeginTransactionAsync();
+        // InMemory (used by tests) does not support transactions.
+        // SQL Server (production / local dev) does — wrap the two saves so a
+        // failure in the second rolls back the first.
+        var supportsTransactions = _db.Database.IsRelational();
+
+        IDbContextTransaction? tx = supportsTransactions
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+
         try
         {
             var existing = await _db.VehicleCategories.ToListAsync();
@@ -160,12 +196,16 @@ public class CategoriesController : ControllerBase
             }
             await _db.SaveChangesAsync();
 
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
         }
         catch
         {
-            await tx.RollbackAsync();
+            if (tx is not null) await tx.RollbackAsync();
             throw;
+        }
+        finally
+        {
+            if (tx is not null) await tx.DisposeAsync();
         }
 
         var saved = await _db.VehicleCategories
@@ -175,6 +215,7 @@ public class CategoriesController : ControllerBase
 
         return Ok(saved.Select(ToDto));
     }
+
     [HttpGet("icons")]
     public IActionResult Icons() => Ok(new[]
     { "light.svg", "medium.svg", "heavy.svg", "car.svg", "truck.svg", "van.svg" });

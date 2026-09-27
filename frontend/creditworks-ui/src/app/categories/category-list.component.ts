@@ -13,8 +13,8 @@ import { ErrorListComponent } from '../shared/error-list.component';
 })
 export class CategoryListComponent implements OnInit {
   private api = inject(ApiService);
-  private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   categories: Category[] = [];
   loading = false;
@@ -58,16 +58,20 @@ export class CategoryListComponent implements OnInit {
       next: () => this.load(),
       error: (err) => {
         const body = err?.error;
+
         if (body?.suggestedAction === 'bulk-edit') {
           const proceed = confirm(
             'Deleting this category would leave a gap or overlap.\n\n' +
               'Open the bulk editor to remove it and redistribute the range?',
           );
-          if (proceed) this.router.navigate(['/categories/bulk'], { queryParams: { remove: id } });
-          else this.error = (body?.errors ?? []).join(' ');
-        } else {
-          this.error = (body?.errors ?? ['Delete failed.']).join(' ');
+          if (proceed) {
+            this.router.navigate(['/categories/bulk'], { queryParams: { remove: id } });
+            return;
+          }
         }
+
+        this.error = (body?.errors ?? ['Delete failed.']).join(' ');
+        this.cdr.detectChanges();
       },
     });
   }
