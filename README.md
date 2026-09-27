@@ -121,8 +121,9 @@ via `proxy.conf.json`, so the browser only ever talks to
 dotnet test
 ```
 
-Expected: 31 tests pass (resolver boundaries, range validator, vehicle
-validator, bulk replace, and the Section 6 integration test).
+Expected: ~45 tests pass (resolver boundaries, range validator, vehicle
+validator, vehicle sorting, bulk replace, edit-conflict handling, and the
+Section 6 integration test).
 
 ---
 
@@ -230,13 +231,14 @@ Deleting a category is also validated — the remaining set must still be valid.
 
 ## Testing strategy
 
-| Layer                                          | Tests          | What they cover                                                                            |
-| ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------ |
-| `CategoryResolver`                             | 6 theory cases | Boundary values, null for empty config                                                     |
-| `CategoryRangeValidator`                       | 7 facts        | Gap, overlap, missing zero start, unbounded top, empty set                                 |
-| `VehicleValidator`                             | 10 facts       | Owner required, year range, weight > 0, ≤ 2 decimals                                       |
-| Integration (`CategoryChangeIntegrationTests`) | 1 fact         | **Section 6** — category change re-categorizes existing vehicles                           |
-| `BulkCategoryUpdateTests`                      | 4 facts        | Bulk replace: shared-boundary shift, gap rejection, overlap rejection, empty set rejection |
+| Layer                                          | Tests          | What they cover                                                                               |
+| ---------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `CategoryResolver`                             | 6 theory cases | Boundary values, null for empty config                                                        |
+| `CategoryRangeValidator`                       | 7 facts        | Gap, overlap, missing zero start, unbounded top, empty set                                    |
+| `VehicleValidator`                             | 10 facts       | Owner required, year range, weight > 0, ≤ 2 decimals                                          |
+| `VehicleSorter`                                | 12 facts       | Four sort fields × asc/desc, unknown-field fallback, case insensitivity, empty input          |
+| `Integration (CategoryChangeIntegrationTests)` | 1 fact         | **Section 6** — category change re-categorizes existing vehicles                              |
+| `BulkCategoryUpdateTests`                      | 6 facts        | Bulk replace (boundary shift, gap/overlap/empty rejection); edit-conflict 409; rename success |
 
 Business rules are unit-tested directly in the domain layer. The integration
 test uses `WebApplicationFactory<Program>` with an InMemory EF Core provider
@@ -265,15 +267,15 @@ throws "Only a single database provider can be registered."
 
 ## Known limitations
 
-1. **Deleting a category requires redistributing its weight range.** Because
+1. **Boundary changes and category deletion require the bulk editor.** Because
    the invariant (no gaps, no overlaps, complete coverage from 0 kg) must hold
-   at every step, deleting any single category from a valid chain leaves an
-   invalid intermediate state — a gap, a missing zero start, or a missing
-   unbounded top. The API returns `409 Conflict` with a
-   `suggestedAction: "bulk-edit"` field; the UI offers to open the bulk editor
-   with the deleted row omitted, letting the user widen a neighbouring
-   category to absorb the freed span. The same bulk editor handles shared
-   boundary shifts (Medium's max + Heavy's min from 2500 → 2000 in one save).
+   at every step, changing any category's `min`/`max` in isolation — or
+   deleting one — would leave an invalid intermediate state. Both the
+   single-category edit endpoint and the delete endpoint return
+   `409 Conflict` with a `suggestedAction: "bulk-edit"` field; the Angular UI
+   offers to redirect to `/categories/bulk` where the user can change multiple
+   rows in a single atomic save. Renaming a category or changing its icon
+   remains a normal single-row `PUT`.
 
 2. **No optimistic concurrency on category edits.** Two concurrent editors
    could overwrite each other. A production system would add a `rowversion`
@@ -294,9 +296,6 @@ throws "Only a single database provider can be registered."
 
 ## What I'd improve next
 
-- **Bulk category update endpoint** (`PUT /api/categories/bulk`) that replaces
-  the full category set atomically. This removes the current limitation on
-  boundary transitions and is a small change (~15 lines).
 - **Angular signals** throughout the SPA to eliminate the manual
   `detectChanges()` calls.
 - **Testcontainers** for the integration test — spin up a real SQL Server
