@@ -1,9 +1,9 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 import { Injectable } from '@angular/core';
 import { Category, Manufacturer, SortDir, SortField, Vehicle } from './models';
 
-const API = 'https://localhost:7293/api';
-
+const API = environment.apiBaseUrl;
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   constructor(private http: HttpClient) {}
@@ -46,6 +46,9 @@ export class ApiService {
     return this.http.delete<void>(`${API}/categories/${id}`);
   }
 
+  replaceAllCategories(body: { categories: Omit<Category, 'id'>[] }) {
+    return this.http.put<Category[]>(`${API}/categories/bulk`, body);
+  }
   getIcons() {
     return this.http.get<string[]>(`${API}/categories/icons`);
   }

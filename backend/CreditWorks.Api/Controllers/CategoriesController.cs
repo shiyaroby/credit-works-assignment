@@ -79,18 +79,102 @@ public class CategoriesController : ControllerBase
         var cat = await _db.VehicleCategories.FindAsync(id);
         if (cat is null) return NotFound();
 
-        var remaining = await _db.VehicleCategories.Where(c => c.Id != id).ToListAsync();
+        var remaining = await _db.VehicleCategories
+            .Where(c => c.Id != id)
+            .ToListAsync();
+
+        if (remaining.Count == 0)
+        {
+            return BadRequest(new
+            {
+                errors = new[] {
+                "Cannot delete the only category. Add a replacement first." }
+            });
+        }
+
         var errors = CategoryRangeValidator.Validate(remaining);
         if (errors.Any())
-            return BadRequest(new { errors = new[] {
-                "Deleting this category would leave an invalid configuration." }
-                .Concat(errors) });
+        {
+            // Structured response so the UI can guide the user
+            return Conflict(new
+            {
+                errors = new[] {
+                    "Deleting this category would leave an invalid configuration.",
+                    "Use 'Edit all' to remove it and redistribute the weight range." }
+                    .Concat(errors),
+                suggestedAction = "bulk-edit"
+            });
+        }
 
         _db.VehicleCategories.Remove(cat);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
+    [HttpPut("bulk")]
+    public async Task<ActionResult<IEnumerable<CategoryDto>>> ReplaceAll(BulkCategoryRequest req)
+    {
+        var incoming = req.Categories?.ToList() ?? new List<UpsertCategoryRequest>();
+
+        if (incoming.Count == 0)
+            return BadRequest(new { errors = new[] { "At least one category is required." } });
+
+        var basicErrors = new List<string>();
+        for (var i = 0; i < incoming.Count; i++)
+        {
+            var r = incoming[i];
+            if (string.IsNullOrWhiteSpace(r.Name))
+                basicErrors.Add($"Row {i + 1}: category name is required.");
+            if (string.IsNullOrWhiteSpace(r.IconName))
+                basicErrors.Add($"Row {i + 1}: category icon is required.");
+            if (r.MinWeightKg < 0)
+                basicErrors.Add($"Row {i + 1} ('{r.Name}'): minimum weight cannot be negative.");
+            if (r.MaxWeightKg.HasValue && r.MaxWeightKg.Value <= r.MinWeightKg)
+                basicErrors.Add($"Row {i + 1} ('{r.Name}'): max weight must exceed min weight.");
+        }
+        if (basicErrors.Any()) return BadRequest(new { errors = basicErrors });
+
+        var candidates = incoming.Select((r, i) => new VehicleCategory
+        {
+            Id = i,
+            Name = r.Name.Trim(),
+            MinWeightKg = r.MinWeightKg,
+            MaxWeightKg = r.MaxWeightKg,
+            IconName = r.IconName.Trim()
+        }).ToList();
+
+        var rangeErrors = CategoryRangeValidator.Validate(candidates);
+        if (rangeErrors.Any()) return BadRequest(new { errors = rangeErrors });
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            var existing = await _db.VehicleCategories.ToListAsync();
+            _db.VehicleCategories.RemoveRange(existing);
+            await _db.SaveChangesAsync();
+
+            foreach (var c in candidates)
+            {
+                c.Id = 0;
+                _db.VehicleCategories.Add(c);
+            }
+            await _db.SaveChangesAsync();
+
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+
+        var saved = await _db.VehicleCategories
+            .AsNoTracking()
+            .OrderBy(c => c.MinWeightKg)
+            .ToListAsync();
+
+        return Ok(saved.Select(ToDto));
+    }
     [HttpGet("icons")]
     public IActionResult Icons() => Ok(new[]
     { "light.svg", "medium.svg", "heavy.svg", "car.svg", "truck.svg", "van.svg" });

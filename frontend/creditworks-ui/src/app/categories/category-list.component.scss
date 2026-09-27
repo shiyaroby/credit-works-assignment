@@ -1,18 +1,43 @@
-@use "../../styles/variables" as v;
+@use '../../styles/variables' as v;
 
-.page { display: grid; gap: v.$space-lg; }
+.page {
+  display: grid;
+  gap: v.$space-lg;
+}
 
 .page-header {
-  display: flex; align-items: center; justify-content: space-between;
-  h2 { margin: 0; }
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  h2 {
+    margin: 0;
+  }
 }
 
-.hint { margin: 0; font-size: v.$font-size-sm; }
+.hint {
+  margin: 0;
+  font-size: v.$font-size-sm;
+}
 
 .col-actions {
-  width: 200px; text-align: right;
-  .btn + .btn { margin-left: v.$space-xs; }
+  width: 200px;
+  text-align: right;
+  .btn + .btn {
+    margin-left: v.$space-xs;
+  }
 }
 
-.btn-sm { padding: v.$space-xs v.$space-sm; font-size: v.$font-size-sm; }
-.empty { text-align: center; color: v.$color-text-muted; padding: v.$space-xl; }
+.actions {
+  display: flex;
+  gap: v.$space-sm;
+}
+
+.btn-sm {
+  padding: v.$space-xs v.$space-sm;
+  font-size: v.$font-size-sm;
+}
+.empty {
+  text-align: center;
+  color: v.$color-text-muted;
+  padding: v.$space-xl;
+}

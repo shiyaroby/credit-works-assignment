@@ -1,12 +1,15 @@
 <section class="page">
   <header class="page-header">
     <h2>Categories</h2>
-    <a routerLink="/categories/new" class="btn btn-primary">+ New category</a>
+    <div class="actions">
+      <a routerLink="/categories/bulk" class="btn btn-secondary">Edit all</a>
+      <a routerLink="/categories/new" class="btn btn-primary">+ New category</a>
+    </div>
   </header>
 
   <p class="hint text-muted">
-    Ranges must cover all weights from 0 kg with no gaps or overlaps.
-    The highest category must be unbounded.
+    Ranges must cover all weights from 0 kg with no gaps or overlaps. The highest category must be
+    unbounded.
   </p>
 
   @if (loading) {
@@ -33,11 +36,13 @@
             <td>{{ c.minWeightKg }}</td>
             <td>{{ c.maxWeightKg !== null ? c.maxWeightKg : '∞' }}</td>
             <td>
-              <img class="icon" [src]="'icons/' + c.iconName" [alt]="c.name">
+              <img class="icon" [src]="'icons/' + c.iconName" [alt]="c.name" />
             </td>
             <td class="col-actions">
               <a [routerLink]="['/categories', c.id]" class="btn btn-secondary btn-sm">Edit</a>
-              <button type="button" class="btn btn-danger btn-sm" (click)="remove(c.id)">Delete</button>
+              <button type="button" class="btn btn-danger btn-sm" (click)="remove(c.id)">
+                Delete
+              </button>
             </td>
           </tr>
         }

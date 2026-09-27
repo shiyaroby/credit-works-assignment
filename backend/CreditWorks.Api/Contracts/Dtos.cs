@@ -12,3 +12,5 @@ public record CategoryDto(int Id, string Name, decimal MinWeightKg,
 
 public record UpsertCategoryRequest(string Name, decimal MinWeightKg,
     decimal? MaxWeightKg, string IconName);
+
+public record BulkCategoryRequest(IReadOnlyList<UpsertCategoryRequest> Categories);

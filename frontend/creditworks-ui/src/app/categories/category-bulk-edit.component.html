@@ -1,0 +1,86 @@
+<section class="page">
+  <header class="page-header">
+    <h2>Edit all categories</h2>
+    <a routerLink="/categories" class="btn btn-secondary">Back to list</a>
+  </header>
+
+  <p class="hint text-muted">
+    Change multiple rows at once and save them together. Use this when a boundary shift requires
+    moving two categories at the same time — for example, moving Medium's max and Heavy's min from
+    2500 to 2000.
+  </p>
+
+  @if (loading) {
+    <p class="text-muted">Loading…</p>
+  }
+
+  @if (!loading) {
+    <table class="bulk-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Min (kg)</th>
+          <th>Max (kg)</th>
+          <th>Icon</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows; track trackByIndex($index); let i = $index) {
+          <tr>
+            <td>
+              <input type="text" [(ngModel)]="rows[i].name" name="name{{ i }}" maxlength="100" />
+            </td>
+            <td>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                [(ngModel)]="rows[i].minWeightKg"
+                name="min{{ i }}"
+              />
+            </td>
+            <td>
+              <input
+                type="number"
+                step="0.01"
+                [(ngModel)]="rows[i].maxWeightKg"
+                name="max{{ i }}"
+                placeholder="∞"
+              />
+            </td>
+            <td>
+              <select [(ngModel)]="rows[i].iconName" name="icon{{ i }}">
+                @for (ic of icons; track ic) {
+                  <option [value]="ic">{{ ic }}</option>
+                }
+              </select>
+              @if (rows[i].iconName) {
+                <img
+                  class="icon"
+                  [src]="'icons/' + rows[i].iconName"
+                  [alt]="rows[i].name"
+                  style="margin-left: 0.5rem"
+                />
+              }
+            </td>
+            <td>
+              <button type="button" class="btn btn-danger btn-sm" (click)="removeRow(i)">
+                Remove
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" (click)="addRow()">+ Add row</button>
+      <button type="button" class="btn btn-primary" [disabled]="submitting" (click)="submit()">
+        {{ submitting ? 'Saving…' : 'Save all' }}
+      </button>
+    </div>
+
+    <app-error-list [errors]="errors"></app-error-list>
+  }
+</section>

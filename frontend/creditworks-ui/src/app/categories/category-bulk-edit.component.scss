@@ -1,0 +1,76 @@
+@use '../../styles/variables' as v;
+
+.page {
+  display: grid;
+  gap: v.$space-lg;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  h2 {
+    margin: 0;
+  }
+}
+
+.hint {
+  margin: 0;
+  font-size: v.$font-size-sm;
+}
+
+.bulk-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: v.$color-surface;
+  border: 1px solid v.$color-border;
+  border-radius: v.$radius-md;
+  overflow: hidden;
+
+  th,
+  td {
+    padding: v.$space-sm v.$space-md;
+    text-align: left;
+    border-bottom: 1px solid v.$color-border;
+    font-size: v.$font-size-base;
+    vertical-align: middle;
+  }
+
+  thead th {
+    background: #fafbfc;
+    font-weight: 600;
+    font-size: v.$font-size-sm;
+    color: v.$color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  input,
+  select {
+    font: inherit;
+    padding: v.$space-xs v.$space-sm;
+    border: 1px solid v.$color-border;
+    border-radius: v.$radius-sm;
+    background: #fff;
+    width: 100%;
+    max-width: 180px;
+
+    &:focus {
+      outline: none;
+      border-color: v.$color-primary;
+      box-shadow: 0 0 0 3px rgba(v.$color-primary, 0.18);
+    }
+  }
+
+  .btn-sm {
+    padding: v.$space-xs v.$space-sm;
+    font-size: v.$font-size-sm;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: v.$space-sm;
+  margin-top: v.$space-md;
+}

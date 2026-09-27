@@ -79,6 +79,12 @@ dotnet ef database update \
   -s backend/CreditWorks.Api
 ```
 
+> **Why not auto-migrate at startup?** `Program.cs` deliberately does not call
+> `Database.Migrate()`. Auto-migration races when multiple instances start
+> concurrently, applies schema changes without review, and has no rollback
+> path. Applying migrations explicitly with `dotnet ef database update` is
+> standard for local development and CI.
+
 ### 4. Run the API
 
 ```bash
@@ -102,8 +108,10 @@ npm start
 Open **http://localhost:4200**.
 
 The Angular dev server proxies `/api/*` requests to `https://localhost:7293`
-via `proxy.conf.json`, so CORS and certificate handling are transparent to the
-browser.
+via `proxy.conf.json`, so the browser only ever talks to
+`http://localhost:4200`. The API also has a CORS policy allowing
+`http://localhost:4200` as a fallback for setups without the proxy
+(e.g. calling the API directly from a browser script during debugging).
 
 ---
 
@@ -113,8 +121,8 @@ browser.
 dotnet test
 ```
 
-Expected: ~27 tests pass (resolver boundaries, range validator, vehicle
-validator, and the Section 6 integration test).
+Expected: 31 tests pass (resolver boundaries, range validator, vehicle
+validator, bulk replace, and the Section 6 integration test).
 
 ---
 
@@ -222,12 +230,13 @@ Deleting a category is also validated — the remaining set must still be valid.
 
 ## Testing strategy
 
-| Layer                                          | Tests          | What they cover                                                  |
-| ---------------------------------------------- | -------------- | ---------------------------------------------------------------- |
-| `CategoryResolver`                             | 6 theory cases | Boundary values, null for empty config                           |
-| `CategoryRangeValidator`                       | 7 facts        | Gap, overlap, missing zero start, unbounded top, empty set       |
-| `VehicleValidator`                             | 10 facts       | Owner required, year range, weight > 0, ≤ 2 decimals             |
-| Integration (`CategoryChangeIntegrationTests`) | 1 fact         | **Section 6** — category change re-categorizes existing vehicles |
+| Layer                                          | Tests          | What they cover                                                                            |
+| ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| `CategoryResolver`                             | 6 theory cases | Boundary values, null for empty config                                                     |
+| `CategoryRangeValidator`                       | 7 facts        | Gap, overlap, missing zero start, unbounded top, empty set                                 |
+| `VehicleValidator`                             | 10 facts       | Owner required, year range, weight > 0, ≤ 2 decimals                                       |
+| Integration (`CategoryChangeIntegrationTests`) | 1 fact         | **Section 6** — category change re-categorizes existing vehicles                           |
+| `BulkCategoryUpdateTests`                      | 4 facts        | Bulk replace: shared-boundary shift, gap rejection, overlap rejection, empty set rejection |
 
 Business rules are unit-tested directly in the domain layer. The integration
 test uses `WebApplicationFactory<Program>` with an InMemory EF Core provider
@@ -256,12 +265,15 @@ throws "Only a single database provider can be registered."
 
 ## Known limitations
 
-1. **Category transitions across a shared boundary** cannot be performed from
-   the UI in a single step. For example, moving Medium's max from 2500 → 2000
-   and Heavy's min from 2500 → 2000 passes through an invalid intermediate
-   state regardless of order. The API correctly rejects each one-sided edit.
-   Fixing this requires a bulk-update endpoint that accepts the full category
-   set and validates it as a whole (see "what I'd improve next").
+1. **Deleting a category requires redistributing its weight range.** Because
+   the invariant (no gaps, no overlaps, complete coverage from 0 kg) must hold
+   at every step, deleting any single category from a valid chain leaves an
+   invalid intermediate state — a gap, a missing zero start, or a missing
+   unbounded top. The API returns `409 Conflict` with a
+   `suggestedAction: "bulk-edit"` field; the UI offers to open the bulk editor
+   with the deleted row omitted, letting the user widen a neighbouring
+   category to absorb the freed span. The same bulk editor handles shared
+   boundary shifts (Medium's max + Heavy's min from 2500 → 2000 in one save).
 
 2. **No optimistic concurrency on category edits.** Two concurrent editors
    could overwrite each other. A production system would add a `rowversion`
