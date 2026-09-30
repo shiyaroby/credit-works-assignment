@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using CreditWorks.Api.Contracts;
-using Xunit;
-
+using Microsoft.Extensions.DependencyInjection;
 namespace CreditWorks.Tests;
 
 public class CategoryApiTests
@@ -136,5 +136,153 @@ public class CategoryApiTests
         var response = await client.PostAsJsonAsync("/api/vehicles",
             new CreateVehicleRequest("Jane", 1, 2020, 999_999_999m));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Creating_a_vehicle_without_weight_returns_weight_required()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        var response = await client.PostAsJsonAsync("/api/vehicles", new
+        {
+            ownerName = "Jane",
+            manufacturerId = 1,
+            yearOfManufacture = 2020
+            // weightKg omitted
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = body.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Contains(errors, e => e!.Contains("Weight is required"));
+    }
+
+    [Fact]
+    public async Task Creating_a_vehicle_with_inactive_manufacturer_returns_400()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        // Deactivate the seeded manufacturer
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider
+                .GetRequiredService<CreditWorks.Infrastructure.Data.AppDbContext>();
+            var m = await db.Manufacturers.FindAsync(1);
+            m!.IsActive = false;
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/vehicles",
+            new CreateVehicleRequest("Jane", 1, 2020, 1500m));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = body.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Contains(errors, e => e!.Contains("inactive", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Malformed_json_returns_400_with_a_message()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        // "abc" cannot deserialize into decimal? -> ModelState error with empty ErrorMessage
+        var content = new StringContent(
+            """{"ownerName":"Jane","manufacturerId":1,"yearOfManufacture":2020,"weightKg":"abc"}""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        var response = await client.PostAsync("/api/vehicles", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = body.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+
+        Assert.NotEmpty(errors);
+        Assert.All(errors, e => Assert.False(string.IsNullOrWhiteSpace(e)));
+        Assert.DoesNotContain(errors, e => e!.Contains("/Users/") || e.Contains(".cs:"));
+    }
+
+    [Fact]
+    public async Task Creating_a_category_with_a_duplicate_name_returns_400()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        // "Medium" already exists. Try creating another.
+        var response = await client.PostAsJsonAsync("/api/categories",
+            new CreateCategoryRequest("Medium", 1000m, "car.svg"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = body.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Contains(errors, e => e!.Contains("already exists", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Renaming_a_category_to_an_existing_name_returns_400()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        var response = await client.PutAsJsonAsync("/api/categories/2",
+            new UpsertCategoryRequest("Light", 500m, 2500m, "medium.svg"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Bulk_replace_rejects_case_variant_duplicate_names()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        // Ranges are valid; only the names collide ("Light" vs "light").
+        var response = await client.PutAsJsonAsync("/api/categories/bulk",
+            new BulkCategoryRequest(new List<UpsertCategoryRequest>
+            {
+                new("Light", 0m,    500m,  "light.svg"),
+                new("light", 500m,  2500m, "medium.svg"),
+                new("Heavy", 2500m, null,  "heavy.svg"),
+            }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = body.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Contains(errors, e => e!.Contains("Duplicate category name", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Rejected_bulk_replace_leaves_existing_categories_unchanged()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        var response = await client.PutAsJsonAsync("/api/categories/bulk",
+            new BulkCategoryRequest(new List<UpsertCategoryRequest>
+            {
+            new("Light",  0m,    500m,  "light.svg"),
+            new("Medium", 500m,  2000m, "medium.svg"),
+            new("Medium", 2000m, null,  "heavy.svg"),   // repeated name
+            }));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var all = await client.GetFromJsonAsync<List<CategoryDto>>("/api/categories");
+        Assert.NotNull(all);
+        Assert.Equal(2500m, all!.Single(c => c.Name == "Heavy").MinWeightKg);
+        Assert.Equal("Medium", await CategoryOfJohnAsync(client));
     }
 }

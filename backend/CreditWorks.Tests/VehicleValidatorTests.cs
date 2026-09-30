@@ -1,11 +1,13 @@
 using CreditWorks.Core.Validation;
-using Xunit;
+using Microsoft.Extensions.Time.Testing;
 
 namespace CreditWorks.Tests;
 
 public class VehicleValidatorTests
 {
     private const int ValidYear = 2020;
+    private static TimeProvider At(int year) =>
+    new FakeTimeProvider(new DateTimeOffset(year, 6, 1, 0, 0, 0, TimeSpan.Zero));
 
     [Fact]
     public void Rejects_empty_owner() =>
@@ -54,4 +56,22 @@ public class VehicleValidatorTests
     [Fact]
     public void Accepts_integer_weight() =>
         Assert.Empty(VehicleValidator.Validate("Alice", 1, ValidYear, 2000m));
+
+    [Fact]
+    public void Accepts_year_1886() =>
+        Assert.Empty(VehicleValidator.Validate("A", 1, 1886, 100m, At(2024)));
+
+    [Fact]
+    public void Rejects_year_1885() =>
+        Assert.Contains(VehicleValidator.Validate("A", 1, 1885, 100m, At(2024)),
+            e => e.Contains("Year"));
+
+    [Fact]
+    public void Accepts_year_at_max() =>
+        Assert.Empty(VehicleValidator.Validate("A", 1, 2025, 100m, At(2024)));
+
+    [Fact]
+    public void Rejects_year_above_max() =>
+        Assert.Contains(VehicleValidator.Validate("A", 1, 2026, 100m, At(2024)),
+            e => e.Contains("Year"));
 }

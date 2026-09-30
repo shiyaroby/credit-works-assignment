@@ -104,4 +104,19 @@ public class VehicleSorterTests
         var result = VehicleSorter.Sort(Array.Empty<Vehicle>(), "weight", "asc").ToList();
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void Sort_is_deterministic_for_equal_values()
+    {
+        var vehicles = new List<Vehicle>
+    {
+        new() { Id = 2, OwnerName = "A", Manufacturer = new Manufacturer { Name = "X" },
+                WeightKg = 100m, YearOfManufacture = 2020 },
+        new() { Id = 1, OwnerName = "A", Manufacturer = new Manufacturer { Name = "X" },
+                WeightKg = 100m, YearOfManufacture = 2020 },
+    };
+
+        var result = VehicleSorter.Sort(vehicles, "weight", "asc").ToList();
+        Assert.Equal(new[] { 1, 2 }, result.Select(v => v.Id));
+    }
 }
