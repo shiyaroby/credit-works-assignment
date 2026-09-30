@@ -12,22 +12,46 @@
     <form #f="ngForm" class="form" (ngSubmit)="submit(f)" novalidate>
       <label>
         Name
-        <input type="text" name="name" [(ngModel)]="model.name"
-               required maxlength="100" autocomplete="off">
+        <input
+          type="text"
+          name="name"
+          [(ngModel)]="model.name"
+          required
+          maxlength="100"
+          autocomplete="off"
+        />
       </label>
 
       <label>
-        Minimum weight (kg)
-        <input type="number" step="0.01" name="minWeightKg"
-               [(ngModel)]="model.minWeightKg" required min="0">
+        {{ isEdit ? 'Minimum weight (kg)' : 'Starts at (kg)' }}
+        <input
+          type="number"
+          step="0.01"
+          name="minWeightKg"
+          [(ngModel)]="model.minWeightKg"
+          required
+          min="0"
+        />
       </label>
 
-      <label>
-        Maximum weight (kg)
-        <input type="number" step="0.01" name="maxWeightKg"
-               [(ngModel)]="model.maxWeightKg"
-               placeholder="Leave blank for ∞ (top category)">
-      </label>
+      @if (isEdit) {
+        <label>
+          Maximum weight (kg)
+          <input
+            type="number"
+            step="0.01"
+            name="maxWeightKg"
+            [(ngModel)]="model.maxWeightKg"
+            placeholder="Leave blank for ∞ (top category)"
+          />
+        </label>
+      } @else {
+        <p class="hint text-muted">
+          Ranges always cover every weight from 0 kg with no gaps or overlaps. Adding a category
+          splits an existing one, deleting merges its range into a neighbour, and changing a
+          boundary is done with "Edit all".
+        </p>
+      }
 
       <label>
         Icon
@@ -40,7 +64,7 @@
 
       @if (model.iconName) {
         <div class="icon-preview">
-          <img [src]="'icons/' + model.iconName" class="icon" alt="Preview">
+          <img [src]="'icons/' + model.iconName" class="icon" alt="Preview" />
           <span class="text-muted">Preview</span>
         </div>
       }

@@ -100,7 +100,11 @@ export class CategoryEditComponent implements OnInit {
     this.submitting = true;
     const req = this.isEdit
       ? this.api.updateCategory(this.id!, payload as any)
-      : this.api.createCategory(payload as any);
+      : this.api.createCategory({
+          name: payload.name,
+          minWeightKg: payload.minWeightKg,
+          iconName: payload.iconName,
+        });
 
     req.subscribe({
       next: () => this.router.navigate(['/categories']),

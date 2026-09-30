@@ -1,6 +1,6 @@
 import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Category } from '../core/models';
@@ -15,7 +15,6 @@ import { ErrorListComponent } from '../shared/error-list.component';
 export class CategoryBulkEditComponent implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
-  private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
 
   rows: Category[] = [];
@@ -25,13 +24,10 @@ export class CategoryBulkEditComponent implements OnInit {
   errors: string[] = [];
 
   ngOnInit(): void {
-    const removeId = Number(this.route.snapshot.queryParamMap.get('remove'));
-
     this.loading = true;
     this.api.getCategories().subscribe({
       next: (c) => {
         this.rows = c
-          .filter((x) => !removeId || x.id !== removeId)
           .slice()
           .sort((a, b) => a.minWeightKg - b.minWeightKg)
           .map((x) => ({ ...x }));

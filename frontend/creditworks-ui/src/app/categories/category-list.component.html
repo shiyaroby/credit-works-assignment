@@ -8,8 +8,9 @@
   </header>
 
   <p class="hint text-muted">
-    Ranges must cover all weights from 0 kg with no gaps or overlaps. The highest category must be
-    unbounded.
+    Ranges always cover every weight from 0 kg with no gaps or overlaps. Adding a category splits an
+    existing one, deleting merges its range into a neighbour, and changing a boundary is done with
+    "Edit all".
   </p>
 
   @if (loading) {

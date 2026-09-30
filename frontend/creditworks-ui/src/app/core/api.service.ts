@@ -33,8 +33,7 @@ export class ApiService {
   getCategories() {
     return this.http.get<Category[]>(`${API}/categories`);
   }
-
-  createCategory(c: Omit<Category, 'id'>) {
+  createCategory(c: { name: string; minWeightKg: number; iconName: string }) {
     return this.http.post<Category>(`${API}/categories`, c);
   }
 
