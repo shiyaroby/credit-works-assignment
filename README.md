@@ -12,14 +12,14 @@ Built for the CreditWorks Software Engineer take-home assignment.
 
 ## Prerequisites
 
-| Tool           | Version       | Notes                                         |
-| -------------- | ------------- | --------------------------------------------- |
-| macOS          | 12+           | Apple Silicon or Intel                        |
-| .NET SDK       | 10.0+         | `dotnet --version`                            |
-| Node.js        | 20+ (via nvm) | `nvm use 20`                                  |
-| Angular CLI    | 21+           | `npm i -g @angular/cli`                       |
-| Docker Desktop | latest        | Apple Silicon: enable _Rosetta for x86/amd64_ |
-| EF Core CLI    | 10+           | `dotnet tool install --global dotnet-ef`      |
+| Tool           | Version                 | Notes                                         |
+| -------------- | ----------------------- | --------------------------------------------- |
+| OS             | macOS / Linux / Windows | Developed on macOS (Apple Silicon)            |
+| .NET SDK       | 10.0+                   | `dotnet --version`                            |
+| Node.js        | 20+ (via nvm)           | `nvm use 20`                                  |
+| Angular CLI    | 21+                     | `npm i -g @angular/cli`                       |
+| Docker Desktop | latest                  | Apple Silicon: enable _Rosetta for x86/amd64_ |
+| EF Core CLI    | 10+                     | `dotnet tool install --global dotnet-ef`      |
 
 ---
 
@@ -121,9 +121,11 @@ via `proxy.conf.json`, so the browser only ever talks to
 dotnet test
 ```
 
-Expected: ~45 tests pass (resolver boundaries, range validator, vehicle
-validator, vehicle sorting, bulk replace, edit-conflict handling, and the
-Section 6 integration test).
+Expected: ~63 test cases pass (xUnit counts each `[InlineData]` row). They
+cover resolver boundaries, the range validator, the split/merge category
+editor, vehicle validation, vehicle sorting, bulk replace, edit-conflict
+handling, and API-level tests of the Section 6 behaviour. No SQL Server is
+needed to run the tests; they use an in-memory database.
 
 ---
 
@@ -132,10 +134,10 @@ Section 6 integration test).
 ```
 backend/
 ├── CreditWorks.Core/            # Domain — no EF, no HTTP dependencies
-│   ├── Models/                  # Manufacturer, Vehicle, VehicleCategory
+│   ├── Models/                  # Manufacturer, Vehicle, VehicleCategory, CategoryIcons
 │   ├── Interfaces/              # ICategoryResolver
-│   ├── Services/                # CategoryResolver
-│   └── Validation/              # CategoryRangeValidator, VehicleValidator
+│   ├── Services/                # CategoryResolver, CategoryRangeEditor, VehicleSorter
+│   └── Validation/              # CategoryRangeValidator, CategoryFieldValidator, VehicleValidator
 ├── CreditWorks.Infrastructure/  # EF Core + SQL Server
 │   ├── Data/AppDbContext.cs
 │   └── Migrations/
@@ -182,8 +184,9 @@ knowledge of persistence or HTTP.
    manufacturers can be added without recompiling.
 
 3. **Icons are named static assets.** Each category stores an `IconName` that
-   maps to a file under `frontend/creditworks-ui/src/assets/icons/`. This is
-   simple and cacheable. A production system would store icons as blobs or in
+   maps to a file under `frontend/creditworks-ui/public/icons/`. The allowed
+   names live in `CategoryIcons` (Core) and are validated on the server, so the
+   API cannot store an arbitrary path. This is simple and cacheable. A production system would store icons as blobs or in
    object storage, with the DB storing a URL.
 
 4. **Ranges are stored as `decimal(10,2)`.** Matches the vehicle weight
@@ -225,24 +228,44 @@ errors:
 { "errors": ["Gap between 'Light' and 'Medium'."] }
 ```
 
-Deleting a category is also validated — the remaining set must still be valid.
+### Editing operations
+
+Because the set must always cover 0 kg → ∞, adding or removing a category on
+its own needs a rule for what happens to the neighbouring range.
+`CategoryRangeEditor` (Core, pure logic with no EF dependency) defines it:
+
+| Operation          | Behaviour                                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Create**         | The new category's start weight must fall strictly inside an existing category. That category is split: it ends at the new start, and the new category takes over the upper part (including an unbounded top). |
+| **Delete**         | The range is absorbed by the category below; deleting the lowest category extends the one above down to 0. The only remaining category cannot be deleted.                                                      |
+| **Edit name/icon** | Always allowed.                                                                                                                                                                                                |
+| **Edit range**     | Saved only if the result is still valid on its own. Otherwise the API returns `409 Conflict` with `suggestedAction: "bulk-edit"` and the UI offers "Edit all".                                                 |
+| **Edit all**       | `PUT /api/categories/bulk` replaces the whole set in one `SaveChanges` call (one database transaction), validated as a whole.                                                                                  |
+
+Every operation finishes by running `CategoryRangeValidator` on the resulting
+set, so the invariants are enforced in one place. Field-level rules (name
+length, known icon, weight bounds and precision) are in `CategoryFieldValidator`.
 
 ---
 
 ## Testing strategy
 
-| Layer                                          | Tests          | What they cover                                                                               |
-| ---------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
-| `CategoryResolver`                             | 6 theory cases | Boundary values, null for empty config                                                        |
-| `CategoryRangeValidator`                       | 7 facts        | Gap, overlap, missing zero start, unbounded top, empty set                                    |
-| `VehicleValidator`                             | 10 facts       | Owner required, year range, weight > 0, ≤ 2 decimals                                          |
-| `VehicleSorter`                                | 12 facts       | Four sort fields × asc/desc, unknown-field fallback, case insensitivity, empty input          |
-| `Integration (CategoryChangeIntegrationTests)` | 1 fact         | **Section 6** — category change re-categorizes existing vehicles                              |
-| `BulkCategoryUpdateTests`                      | 6 facts        | Bulk replace (boundary shift, gap/overlap/empty rejection); edit-conflict 409; rename success |
+| Layer                                          | Tests                   | What they cover                                                                                                                                |
+| ---------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CategoryResolver`                             | 8 theory cases + 1 fact | Boundary values, null for empty config                                                                                                         |
+| `CategoryRangeValidator`                       | 7 facts                 | Gap, overlap, missing zero start, unbounded top, empty set                                                                                     |
+| `VehicleValidator`                             | 10 facts                | Owner required, year range, weight > 0, ≤ 2 decimals                                                                                           |
+| `VehicleSorter`                                | 12 facts                | Four sort fields × asc/desc, unknown-field fallback, case insensitivity, empty input                                                           |
+| `Integration (CategoryChangeIntegrationTests)` | 1 fact                  | **Section 6** — category change re-categorizes existing vehicles                                                                               |
+| `BulkCategoryUpdateTests`                      | 6 facts                 | Bulk replace (boundary shift, gap/overlap/empty rejection); edit-conflict 409; rename success                                                  |
+| `CategoryRangeEditor`                          | 7 facts + 3 theory rows | Split (inside, at existing boundary, inside unbounded top); remove (middle, lowest, top, only, not found)                                      |
+| `CategoryApiTests`                             | 8 facts                 | Section 6 via HTTP (bulk boundary change re-categorises a vehicle); create splits; delete merges; 404s; server-side icon and weight validation |
 
 Business rules are unit-tested directly in the domain layer. The integration
-test uses `WebApplicationFactory<Program>` with an InMemory EF Core provider
-overriding the SQL Server registration.
+and API tests use `WebApplicationFactory<Program>` with an InMemory EF Core
+provider overriding the SQL Server registration (`ApiFactory` for the API
+tests). Note that InMemory does not enforce decimal precision, foreign keys or
+unique indexes, nor does it provide real transaction isolation.
 
 **Note on EF Core 10 in tests:** `Program.cs` registers SQL Server. The
 integration test's `ConfigureServices` removes all EF Core service descriptors
@@ -267,27 +290,32 @@ throws "Only a single database provider can be registered."
 
 ## Known limitations
 
-1. **Boundary changes and category deletion require the bulk editor.** Because
-   the invariant (no gaps, no overlaps, complete coverage from 0 kg) must hold
-   at every step, changing any category's `min`/`max` in isolation — or
-   deleting one — would leave an invalid intermediate state. Both the
-   single-category edit endpoint and the delete endpoint return
-   `409 Conflict` with a `suggestedAction: "bulk-edit"` field; the Angular UI
-   offers to redirect to `/categories/bulk` where the user can change multiple
-   rows in a single atomic save. Renaming a category or changing its icon
-   remains a normal single-row `PUT`.
+1. **Range edits on an existing category go through the bulk editor.**
+   Moving one boundary on its own would leave a gap or overlap until the
+   neighbour is adjusted too, so the single-category `PUT` returns
+   `409 Conflict` with `suggestedAction: "bulk-edit"` when the range change is
+   not valid alone, and the UI offers to open `/categories/bulk`. Renaming a
+   category or changing its icon remains a normal single-row `PUT`. Create and
+   delete work on their own (split and merge, described above).
 
-2. **No optimistic concurrency on category edits.** Two concurrent editors
-   could overwrite each other. A production system would add a `rowversion`
-   column and reject stale updates.
+2. **Create takes a start weight only.** `POST /api/categories` splits the
+   category containing the start weight, so a bounded range such as
+   `[1000, 1500)` takes two steps (create, then adjust via "Edit all") or one
+   bulk save.
 
-3. **Icons are static assets.** Fine for a demo; would move to blob storage or
+3. **No optimistic concurrency or explicit serializable transaction on
+   category writes.** Each write is a single atomic `SaveChanges`, but two
+   concurrent editors could validate against stale data. A `rowversion`
+   column and/or a serializable transaction would close this; it is not a
+   concern for a single-user demo.
+
+4. **Icons are static assets.** Fine for a demo; would move to blob storage or
    a CDN in production.
 
-4. **No paging on the vehicle list.** Acceptable for the current scale; would
+5. **No paging on the vehicle list.** Acceptable for the current scale; would
    paginate once the vehicle count grows.
 
-5. **Change detection workaround in the SPA.** Angular 21 uses zoneless change
+6. **Change detection workaround in the SPA.** Angular 21 uses zoneless change
    detection by default; the components use `ChangeDetectorRef.detectChanges()`
    after async state updates. An idiomatic future version would use signals
    (`signal()`, `computed()`) throughout, removing the manual calls.
@@ -301,7 +329,14 @@ throws "Only a single database provider can be registered."
 - **Testcontainers** for the integration test — spin up a real SQL Server
   container instead of using the InMemory provider, catching provider-specific
   bugs (case-sensitivity, decimal precision, index behaviour).
-- **Optimistic concurrency** (`rowversion` on `VehicleCategories`).
+- **Create with an explicit range.** Accept an optional maximum on
+  `POST /api/categories` and split the host category into three parts when both
+  bounds fall inside it, so a bounded range can be created in one step.
+- **Upper-bound-only schema.** Store just each category's upper bound and derive
+  the lower bound from the previous row, making gaps and overlaps impossible by
+  construction rather than by validation.
+- **Optimistic concurrency** (`rowversion` on `VehicleCategories`) and a
+  serializable transaction around category writes.
 - **Authentication** on write endpoints (e.g. JWT bearer).
 - **Paging, filtering, and search** on the vehicle list.
 - **Container image + docker-compose** to bundle API + SQL Server + SPA for
@@ -323,7 +358,8 @@ throws "Only a single database provider can be registered."
   (`{"error": "An unexpected error occurred."}`) — no stack traces leak to the
   client. The `ExceptionMiddleware` logs full details server-side.
 - **CORS.** The API allows only `http://localhost:4200` (the Angular dev
-  server) in development.
+  server). The policy is registered in all environments, so it would need to
+  be made configurable for a real deployment.
 
 ---
 
@@ -334,7 +370,7 @@ throws "Only a single database provider can be registered."
 ├── .vscode/                    # VS Code workspace config (committed)
 ├── .gitignore
 ├── README.md
-├── CreditWorks.sln
+├── CreditWorks.slnx
 ├── backend/
 │   ├── CreditWorks.Api/
 │   ├── CreditWorks.Core/
