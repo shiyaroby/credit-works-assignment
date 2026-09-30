@@ -1,10 +1,10 @@
 using CreditWorks.Api.Contracts;
 using CreditWorks.Core.Models;
+using CreditWorks.Core.Services;
 using CreditWorks.Core.Validation;
 using CreditWorks.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace CreditWorks.Api.Controllers;
 
@@ -24,59 +24,72 @@ public class CategoriesController : ControllerBase
         return Ok(cats.Select(ToDto));
     }
 
+    [HttpGet("icons")]
+    public IActionResult Icons() => Ok(CategoryIcons.All);
+
+    /// <summary>
+    /// Creates a category by splitting the existing category that contains MinWeightKg.
+    /// The new category takes over the upper part of that range.
+    /// </summary>
     [HttpPost]
-    public Task<ActionResult<CategoryDto>> Create(UpsertCategoryRequest req)
-        => Upsert(null, req);
-
-    [HttpPut("{id:int}")]
-    public Task<ActionResult<CategoryDto>> Update(int id, UpsertCategoryRequest req)
-        => Upsert(id, req);
-
-    private async Task<ActionResult<CategoryDto>> Upsert(int? id, UpsertCategoryRequest req)
+    public async Task<ActionResult<CategoryDto>> Create(CreateCategoryRequest req)
     {
-        var basic = new List<string>();
-        if (string.IsNullOrWhiteSpace(req.Name)) basic.Add("Category name is required.");
-        if (string.IsNullOrWhiteSpace(req.IconName)) basic.Add("Category icon is required.");
-        if (req.MinWeightKg < 0) basic.Add("Minimum weight cannot be negative.");
-        if (req.MaxWeightKg.HasValue && req.MaxWeightKg.Value <= req.MinWeightKg)
-            basic.Add("Maximum weight must be greater than minimum.");
-        if (basic.Any()) return BadRequest(new { errors = basic });
+        var fieldErrors = CategoryFieldValidator.Validate(req.Name, req.IconName, req.MinWeightKg, null);
+        if (fieldErrors.Count > 0) return BadRequest(new { errors = fieldErrors });
 
         var all = await _db.VehicleCategories.ToListAsync();
+        var result = CategoryRangeEditor.Split(
+            all, req.Name.Trim(), req.IconName.Trim(), req.MinWeightKg);
 
-        // For edits, check whether the range actually changed. If only name/icon changed,
-        // the update will always be valid — skip the conflict redirect path.
-        var existing = id is null ? null : all.FirstOrDefault(c => c.Id == id);
+        if (!result.Succeeded) return BadRequest(new { errors = result.Errors });
+
+        _db.VehicleCategories.Add(result.Category!);
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(result.Category!));
+    }
+
+    /// <summary>
+    /// Updates a category. Name/icon changes always succeed. A range change that would leave
+    /// a gap or overlap is answered with 409 so the client can offer the bulk editor.
+    /// </summary>
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<CategoryDto>> Update(int id, UpsertCategoryRequest req)
+    {
+        var basic = CategoryFieldValidator.Validate(req.Name, req.IconName, req.MinWeightKg, req.MaxWeightKg);
+        if (basic.Count > 0) return BadRequest(new { errors = basic });
+
+        var all = await _db.VehicleCategories.ToListAsync();
+        var existing = all.FirstOrDefault(c => c.Id == id);
+        if (existing is null) return NotFound();
 
         var candidate = new VehicleCategory
         {
-            Id = id ?? 0,
+            Id = id,
             Name = req.Name.Trim(),
             MinWeightKg = req.MinWeightKg,
             MaxWeightKg = req.MaxWeightKg,
             IconName = req.IconName.Trim()
         };
 
-        var workingSet = all.Where(c => c.Id != (id ?? 0)).ToList();
-        workingSet.Add(candidate);
-
+        var workingSet = all.Where(c => c.Id != id).Append(candidate).ToList();
         var rangeErrors = CategoryRangeValidator.Validate(workingSet);
-        if (rangeErrors.Any())
-        {
-            var isExistingEdit = existing is not null;
-            var rangeChanged = isExistingEdit &&
-                (existing!.MinWeightKg != candidate.MinWeightKg ||
-                 existing.MaxWeightKg != candidate.MaxWeightKg);
 
-            if (isExistingEdit && rangeChanged)
+        if (rangeErrors.Count > 0)
+        {
+            var rangeChanged =
+                existing.MinWeightKg != candidate.MinWeightKg ||
+                existing.MaxWeightKg != candidate.MaxWeightKg;
+
+            if (rangeChanged)
             {
                 return Conflict(new
                 {
-                    errors = new[] {
-                        "This boundary change can't be saved on its own because it would leave "
-                        + "a gap or overlap until a neighbouring category is adjusted too.",
-                        "Use 'Edit all' to change both rows in a single save." }
-                        .Concat(rangeErrors),
+                    errors = new[]
+                    {
+                        "This boundary change can't be saved on its own because it would leave " +
+                        "a gap or overlap until a neighbouring category is adjusted too.",
+                        "Use 'Edit all' to change both rows in a single save."
+                    }.Concat(rangeErrors),
                     suggestedAction = "bulk-edit"
                 });
             }
@@ -84,87 +97,50 @@ public class CategoriesController : ControllerBase
             return BadRequest(new { errors = rangeErrors });
         }
 
-        if (id is null)
-        {
-            _db.VehicleCategories.Add(candidate);
-        }
-        else
-        {
-            if (existing is null) return NotFound();
-            existing.Name = candidate.Name;
-            existing.MinWeightKg = candidate.MinWeightKg;
-            existing.MaxWeightKg = candidate.MaxWeightKg;
-            existing.IconName = candidate.IconName;
-            candidate = existing;
-        }
+        existing.Name = candidate.Name;
+        existing.MinWeightKg = candidate.MinWeightKg;
+        existing.MaxWeightKg = candidate.MaxWeightKg;
+        existing.IconName = candidate.IconName;
 
         await _db.SaveChangesAsync();
-        return Ok(ToDto(candidate));
+        return Ok(ToDto(existing));
     }
 
+    /// <summary>Deletes a category; a neighbour absorbs its weight range.</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var cat = await _db.VehicleCategories.FindAsync(id);
-        if (cat is null) return NotFound();
+        var all = await _db.VehicleCategories.ToListAsync();
+        var result = CategoryRangeEditor.Remove(all, id);
 
-        var remaining = await _db.VehicleCategories
-            .Where(c => c.Id != id)
-            .ToListAsync();
+        if (result.NotFound) return NotFound();
+        if (!result.Succeeded) return BadRequest(new { errors = result.Errors });
 
-        if (remaining.Count == 0)
-        {
-            return BadRequest(new
-            {
-                errors = new[] {
-                    "Cannot delete the only category. Add a replacement first." }
-            });
-        }
-
-        var errors = CategoryRangeValidator.Validate(remaining);
-        if (errors.Any())
-        {
-            return Conflict(new
-            {
-                errors = new[] {
-                    "Deleting this category would leave an invalid configuration.",
-                    "Use 'Edit all' to remove it and redistribute the weight range." }
-                    .Concat(errors),
-                suggestedAction = "bulk-edit"
-            });
-        }
-
-        _db.VehicleCategories.Remove(cat);
+        _db.VehicleCategories.Remove(result.Category!);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
+    /// <summary>
+    /// Replaces the whole category set. Removal and insertion share one SaveChanges call,
+    /// which EF Core executes in a single database transaction.
+    /// </summary>
     [HttpPut("bulk")]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> ReplaceAll(BulkCategoryRequest req)
     {
         var incoming = req.Categories?.ToList() ?? new List<UpsertCategoryRequest>();
-
         if (incoming.Count == 0)
             return BadRequest(new { errors = new[] { "At least one category is required." } });
 
-        var basicErrors = new List<string>();
-        for (var i = 0; i < incoming.Count; i++)
-        {
-            var r = incoming[i];
-            if (string.IsNullOrWhiteSpace(r.Name))
-                basicErrors.Add($"Row {i + 1}: category name is required.");
-            if (string.IsNullOrWhiteSpace(r.IconName))
-                basicErrors.Add($"Row {i + 1}: category icon is required.");
-            if (r.MinWeightKg < 0)
-                basicErrors.Add($"Row {i + 1} ('{r.Name}'): minimum weight cannot be negative.");
-            if (r.MaxWeightKg.HasValue && r.MaxWeightKg.Value <= r.MinWeightKg)
-                basicErrors.Add($"Row {i + 1} ('{r.Name}'): max weight must exceed min weight.");
-        }
-        if (basicErrors.Any()) return BadRequest(new { errors = basicErrors });
+        var fieldErrors = incoming
+            .SelectMany((r, i) => CategoryFieldValidator
+                .Validate(r.Name, r.IconName, r.MinWeightKg, r.MaxWeightKg)
+                .Select(e => $"Row {i + 1}: {e}"))
+            .ToList();
+        if (fieldErrors.Count > 0) return BadRequest(new { errors = fieldErrors });
 
-        var candidates = incoming.Select((r, i) => new VehicleCategory
+        var candidates = incoming.Select(r => new VehicleCategory
         {
-            Id = i,
             Name = r.Name.Trim(),
             MinWeightKg = r.MinWeightKg,
             MaxWeightKg = r.MaxWeightKg,
@@ -172,53 +148,14 @@ public class CategoriesController : ControllerBase
         }).ToList();
 
         var rangeErrors = CategoryRangeValidator.Validate(candidates);
-        if (rangeErrors.Any()) return BadRequest(new { errors = rangeErrors });
+        if (rangeErrors.Count > 0) return BadRequest(new { errors = rangeErrors });
 
-        // InMemory (used by tests) does not support transactions.
-        // SQL Server (production / local dev) does — wrap the two saves so a
-        // failure in the second rolls back the first.
-        var supportsTransactions = _db.Database.IsRelational();
+        _db.VehicleCategories.RemoveRange(await _db.VehicleCategories.ToListAsync());
+        _db.VehicleCategories.AddRange(candidates);
+        await _db.SaveChangesAsync();
 
-        IDbContextTransaction? tx = supportsTransactions
-            ? await _db.Database.BeginTransactionAsync()
-            : null;
-
-        try
-        {
-            var existing = await _db.VehicleCategories.ToListAsync();
-            _db.VehicleCategories.RemoveRange(existing);
-            await _db.SaveChangesAsync();
-
-            foreach (var c in candidates)
-            {
-                c.Id = 0;
-                _db.VehicleCategories.Add(c);
-            }
-            await _db.SaveChangesAsync();
-
-            if (tx is not null) await tx.CommitAsync();
-        }
-        catch
-        {
-            if (tx is not null) await tx.RollbackAsync();
-            throw;
-        }
-        finally
-        {
-            if (tx is not null) await tx.DisposeAsync();
-        }
-
-        var saved = await _db.VehicleCategories
-            .AsNoTracking()
-            .OrderBy(c => c.MinWeightKg)
-            .ToListAsync();
-
-        return Ok(saved.Select(ToDto));
+        return Ok(candidates.OrderBy(c => c.MinWeightKg).Select(ToDto));
     }
-
-    [HttpGet("icons")]
-    public IActionResult Icons() => Ok(new[]
-    { "light.svg", "medium.svg", "heavy.svg", "car.svg", "truck.svg", "van.svg" });
 
     private static CategoryDto ToDto(VehicleCategory c) =>
         new(c.Id, c.Name, c.MinWeightKg, c.MaxWeightKg, c.IconName);
