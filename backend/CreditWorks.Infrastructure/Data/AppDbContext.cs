@@ -33,6 +33,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.IconName).IsRequired().HasMaxLength(100);
             e.Property(c => c.MinWeightKg).HasColumnType("decimal(10,2)");
             e.Property(c => c.MaxWeightKg).HasColumnType("decimal(10,2)");
+            e.HasIndex(c => c.Name).IsUnique();
         });
 
         b.Entity<Manufacturer>().HasData(
@@ -43,8 +44,8 @@ public class AppDbContext : DbContext
             new Manufacturer { Id = 5, Name = "Toyota" });
 
         b.Entity<VehicleCategory>().HasData(
-            new VehicleCategory { Id = 1, Name = "Light",  MinWeightKg = 0m,    MaxWeightKg = 500m,  IconName = "light.svg" },
-            new VehicleCategory { Id = 2, Name = "Medium", MinWeightKg = 500m,  MaxWeightKg = 2500m, IconName = "medium.svg" },
-            new VehicleCategory { Id = 3, Name = "Heavy",  MinWeightKg = 2500m, MaxWeightKg = null,  IconName = "heavy.svg" });
+            new VehicleCategory { Id = 1, Name = "Light", MinWeightKg = 0m, MaxWeightKg = 500m, IconName = "light.svg" },
+            new VehicleCategory { Id = 2, Name = "Medium", MinWeightKg = 500m, MaxWeightKg = 2500m, IconName = "medium.svg" },
+            new VehicleCategory { Id = 3, Name = "Heavy", MinWeightKg = 2500m, MaxWeightKg = null, IconName = "heavy.svg" });
     }
 }
