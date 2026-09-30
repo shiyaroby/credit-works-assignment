@@ -38,6 +38,8 @@ public class CategoriesController : ControllerBase
         if (fieldErrors.Count > 0) return BadRequest(new { errors = fieldErrors });
 
         var all = await _db.VehicleCategories.ToListAsync();
+        var nameErrors = CategoryFieldValidator.ValidateNameUnique(req.Name, null, all);
+        if (nameErrors.Count > 0) return BadRequest(new { errors = nameErrors });
         var result = CategoryRangeEditor.Split(
             all, req.Name.Trim(), req.IconName.Trim(), req.MinWeightKg);
 
@@ -59,6 +61,8 @@ public class CategoriesController : ControllerBase
         if (basic.Count > 0) return BadRequest(new { errors = basic });
 
         var all = await _db.VehicleCategories.ToListAsync();
+        var nameErrors = CategoryFieldValidator.ValidateNameUnique(req.Name, id, all);
+        if (nameErrors.Count > 0) return BadRequest(new { errors = nameErrors });
         var existing = all.FirstOrDefault(c => c.Id == id);
         if (existing is null) return NotFound();
 
@@ -146,6 +150,13 @@ public class CategoriesController : ControllerBase
             MaxWeightKg = r.MaxWeightKg,
             IconName = r.IconName.Trim()
         }).ToList();
+
+        var duplicateNames = candidates
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => $"Duplicate category name: '{g.Key}'.")
+            .ToList();
+        if (duplicateNames.Count > 0) return BadRequest(new { errors = duplicateNames });
 
         var rangeErrors = CategoryRangeValidator.Validate(candidates);
         if (rangeErrors.Count > 0) return BadRequest(new { errors = rangeErrors });

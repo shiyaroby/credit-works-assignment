@@ -17,14 +17,14 @@ public static class VehicleSorter
 
         return (sortBy?.ToLowerInvariant(), descending) switch
         {
-            ("manufacturer", true) => vehicles.OrderByDescending(v => v.Manufacturer.Name),
-            ("manufacturer", false) => vehicles.OrderBy(v => v.Manufacturer.Name),
-            ("year", true) => vehicles.OrderByDescending(v => v.YearOfManufacture),
-            ("year", false) => vehicles.OrderBy(v => v.YearOfManufacture),
-            ("weight", true) => vehicles.OrderByDescending(v => v.WeightKg),
-            ("weight", false) => vehicles.OrderBy(v => v.WeightKg),
-            ("ownername", true) => vehicles.OrderByDescending(v => v.OwnerName),
-            _ => vehicles.OrderBy(v => v.OwnerName)
+            ("manufacturer", true) => vehicles.OrderByDescending(v => v.Manufacturer.Name).ThenBy(v => v.Id),
+            ("manufacturer", false) => vehicles.OrderBy(v => v.Manufacturer.Name).ThenBy(v => v.Id),
+            ("year", true) => vehicles.OrderByDescending(v => v.YearOfManufacture).ThenBy(v => v.Id),
+            ("year", false) => vehicles.OrderBy(v => v.YearOfManufacture).ThenBy(v => v.Id),
+            ("weight", true) => vehicles.OrderByDescending(v => v.WeightKg).ThenBy(v => v.Id),
+            ("weight", false) => vehicles.OrderBy(v => v.WeightKg).ThenBy(v => v.Id),
+            ("ownername", true) => vehicles.OrderByDescending(v => v.OwnerName).ThenBy(v => v.Id),
+            _ => vehicles.OrderBy(v => v.OwnerName).ThenBy(v => v.Id)
         };
     }
 }

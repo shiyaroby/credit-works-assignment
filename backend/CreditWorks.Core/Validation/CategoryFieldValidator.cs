@@ -41,4 +41,17 @@ public static class CategoryFieldValidator
         if (value > MaxWeightKg) errors.Add($"{label} cannot exceed {MaxWeightKg:N2} kg.");
         if (decimal.Round(value, 2) != value) errors.Add($"{label} supports at most two decimal places.");
     }
+    public static IReadOnlyList<string> ValidateNameUnique(
+        string name, int? excludeId, IEnumerable<VehicleCategory> existing)
+    {
+        var trimmed = name.Trim();
+        var collision = existing.Any(c =>
+            c.Id != excludeId &&
+            string.Equals(c.Name.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+
+        return collision
+            ? new[] { $"A category named '{trimmed}' already exists." }
+            : Array.Empty<string>();
+    }
+
 }
