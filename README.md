@@ -137,7 +137,7 @@ From the repository root (after the restore/build in step 3):
 dotnet test
 ```
 
-Expected: about 74 test cases pass (xUnit counts each `[InlineData]` row). They
+Expected: 74 test cases pass (xUnit counts each `[InlineData]` row). They
 cover resolver boundaries, the range validator, the split/merge category
 editor, vehicle validation, vehicle sorting, bulk replace, edit-conflict
 handling, and API-level tests of the Section 6 behaviour. No SQL Server is
