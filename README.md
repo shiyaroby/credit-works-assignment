@@ -73,14 +73,22 @@ Trust the ASP.NET Core development certificate once:
 dotnet dev-certs https --trust
 ```
 
-### 3. Apply migrations
+### 3. Restore, build and apply migrations
+
+From the repository root:
 
 ```bash
 cd ../..
+dotnet restore
+dotnet build
 dotnet ef database update \
   -p backend/CreditWorks.Infrastructure \
   -s backend/CreditWorks.Api
 ```
+
+`dotnet ef` does not restore packages itself, so on a fresh clone the restore
+and build must come first (otherwise it fails with `NETSDK1004: Assets file
+... project.assets.json not found`).
 
 This creates the `CreditWorks` database, the schema, the unique indexes, and
 the seed data (five manufacturers, three categories).
@@ -122,6 +130,8 @@ via `proxy.conf.json`, so the browser only ever talks to
 ---
 
 ## Running the tests
+
+From the repository root (after the restore/build in step 3):
 
 ```bash
 dotnet test
@@ -433,6 +443,19 @@ limitations.
   be made configurable for a real deployment.
 - **Omitted for this exercise:** authentication/authorisation, rate limiting,
   HTTPS-only enforcement and HSTS, and audit logging of category changes.
+
+---
+
+## Troubleshooting
+
+| Symptom                                                         | Fix                                                                                                                                                                         |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NETSDK1004 ... project.assets.json not found`                  | Run `dotnet restore` (and `dotnet build`) from the repo root before `dotnet ef`.                                                                                            |
+| `Login failed` / connection refused from the API or `dotnet ef` | SQL Server takes ~20 seconds to start; check `docker ps`, and that the user-secrets connection string uses `localhost,1433` (comma) and the same password as the container. |
+| SSL / certificate error connecting to SQL Server                | Keep `TrustServerCertificate=True` in the connection string.                                                                                                                |
+| Browser warns about the HTTPS certificate                       | Run `dotnet dev-certs https --trust` once.                                                                                                                                  |
+| SQL Server container exits immediately on Apple Silicon         | Enable Rosetta for x86/amd64 emulation in Docker Desktop. The `platform does not match` warning on start-up is harmless.                                                    |
+| `ng` / `npm start` fails on Node version                        | Use Node 20.19+ (or 22.12+).                                                                                                                                                |
 
 ---
 
