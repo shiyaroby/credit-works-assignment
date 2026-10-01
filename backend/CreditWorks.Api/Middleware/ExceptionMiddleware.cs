@@ -37,7 +37,14 @@ public class ExceptionMiddleware
             await WriteError(ctx, StatusCodes.Status409Conflict,
                 "The change conflicts with existing data. Refresh and try again.");
         }
-        catch (Exception ex) when (ex is DbUpdateException or SqlException)
+        catch (DbUpdateException ex)
+        {
+            // Constraint or data problem that validation should have caught; not an outage.
+            _log.LogError(ex, "Database update failed");
+            await WriteError(ctx, StatusCodes.Status500InternalServerError,
+                "The change could not be saved. Please check the data and try again.");
+        }
+        catch (SqlException ex)
         {
             // Connection failures, timeouts, deadlocks, etc. (not the caller's fault).
             _log.LogError(ex, "Database unavailable or failed");
@@ -59,6 +66,7 @@ public class ExceptionMiddleware
     {
         ctx.Response.StatusCode = statusCode;
         ctx.Response.ContentType = "application/json";
-        return ctx.Response.WriteAsync(JsonSerializer.Serialize(new { error = message }));
+        return ctx.Response.WriteAsync(JsonSerializer.Serialize(
+            new { error = message, errors = new[] { message } }));
     }
 }

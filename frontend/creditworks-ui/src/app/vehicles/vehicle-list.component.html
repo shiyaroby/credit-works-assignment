@@ -10,24 +10,36 @@
   <div class="toolbar">
     <span class="text-muted">Sort by:</span>
     <div class="sort-group">
-      <button type="button" class="sort-btn"
-              [class.active]="sortBy === 'ownerName'"
-              (click)="setSort('ownerName')">
+      <button
+        type="button"
+        class="sort-btn"
+        [class.active]="sortBy === 'ownerName'"
+        (click)="setSort('ownerName')"
+      >
         Owner {{ indicator('ownerName') }}
       </button>
-      <button type="button" class="sort-btn"
-              [class.active]="sortBy === 'manufacturer'"
-              (click)="setSort('manufacturer')">
+      <button
+        type="button"
+        class="sort-btn"
+        [class.active]="sortBy === 'manufacturer'"
+        (click)="setSort('manufacturer')"
+      >
         Manufacturer {{ indicator('manufacturer') }}
       </button>
-      <button type="button" class="sort-btn"
-              [class.active]="sortBy === 'year'"
-              (click)="setSort('year')">
+      <button
+        type="button"
+        class="sort-btn"
+        [class.active]="sortBy === 'year'"
+        (click)="setSort('year')"
+      >
         Year {{ indicator('year') }}
       </button>
-      <button type="button" class="sort-btn"
-              [class.active]="sortBy === 'weight'"
-              (click)="setSort('weight')">
+      <button
+        type="button"
+        class="sort-btn"
+        [class.active]="sortBy === 'weight'"
+        (click)="setSort('weight')"
+      >
         Weight {{ indicator('weight') }}
       </button>
     </div>
@@ -57,15 +69,20 @@
             <td>{{ v.manufacturerName }}</td>
             <td>{{ v.yearOfManufacture }}</td>
             <td class="category-cell">
-              <img class="icon"
-                   [src]="'icons/' + (v.categoryIcon || 'unknown.svg')"
-                   [alt]="v.categoryName || ''"
-                   [title]="v.categoryName || ''">
+              @if (v.categoryIcon) {
+                <img
+                  class="icon"
+                  [src]="'icons/' + v.categoryIcon"
+                  [alt]="v.categoryName || ''"
+                  [title]="v.categoryName || ''"
+                />
+              }
               <span>{{ v.categoryName || '—' }}</span>
             </td>
             <td class="col-actions">
-              <button type="button" class="btn btn-danger btn-sm"
-                      (click)="remove(v.id)">Delete</button>
+              <button type="button" class="btn btn-danger btn-sm" (click)="remove(v.id)">
+                Delete
+              </button>
             </td>
           </tr>
         }

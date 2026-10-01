@@ -285,4 +285,14 @@ public class CategoryApiTests
         Assert.Equal(2500m, all!.Single(c => c.Name == "Heavy").MinWeightKg);
         Assert.Equal("Medium", await CategoryOfJohnAsync(client));
     }
+    [Fact]
+    public async Task Editing_a_missing_category_with_a_duplicate_name_returns_404()
+    {
+        var (factory, client) = await StartAsync();
+        using var _ = factory;
+
+        var response = await client.PutAsJsonAsync("/api/categories/99",
+            new UpsertCategoryRequest("Light", 0m, 10m, "car.svg"));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
 }

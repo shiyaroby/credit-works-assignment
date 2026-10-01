@@ -137,7 +137,7 @@ From the repository root (after the restore/build in step 3):
 dotnet test
 ```
 
-Expected: 74 test cases pass (xUnit counts each `[InlineData]` row). They
+Expected: 75 test cases pass (xUnit counts each `[InlineData]` row). They
 cover resolver boundaries, the range validator, the split/merge category
 editor, vehicle validation, vehicle sorting, bulk replace, edit-conflict
 handling, and API-level tests of the Section 6 behaviour. No SQL Server is
@@ -284,9 +284,13 @@ length and uniqueness, known icon, weight bounds and precision) are in
 | Malformed or unparseable request body              | `400` with `{ "errors": ["The request body is malformed or contains invalid values."] }` |
 | Record does not exist                              | `404`                                                                                    |
 | Range edit that needs a neighbour adjusted         | `409` with `errors` and `suggestedAction: "bulk-edit"`                                   |
-| Unique-key violation or concurrency conflict       | `409` with `{ "error": "..." }`                                                          |
-| Other database failure (connection, timeout, etc.) | `503` with `{ "error": "..." }`                                                          |
-| Anything unexpected                                | `500` with a generic `{ "error": "..." }`                                                |
+| Unique-key violation or concurrency conflict       | `409` with `{ "errors": ["..."] }`                                                       |
+| Database unavailable (connection failure, timeout) | `503` with `{ "errors": ["..."] }` (most connection failures; see note below)            |
+| Other save failure, or anything unexpected         | `500` with a generic `{ "errors": ["..."] }`                                             |
+
+> **Note:** a connection failure that happens during `SaveChanges` is wrapped by
+> EF Core in a `DbUpdateException` and is reported as `500`; failures while
+> reading data surface as `503`.
 
 Stack traces and exception messages are never returned to the client;
 `ExceptionMiddleware` logs the details server-side.
@@ -295,15 +299,15 @@ Stack traces and exception messages are never returned to the client;
 
 ## Testing strategy
 
-| Layer                     | Tests                   | What they cover                                                                                                                                                      |
-| ------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CategoryResolver`        | 8 theory rows + 1 fact  | Boundary values, null for empty config                                                                                                                               |
-| `CategoryRangeValidator`  | 7 facts                 | Gap, overlap, missing zero start, unbounded top, empty set                                                                                                           |
-| `CategoryRangeEditor`     | 7 facts + 3 theory rows | Split (create) and Remove (merge) — valid and rejected cases                                                                                                         |
-| `VehicleValidator`        | 14 facts                | Owner, year (incl. 1886 / max / max+1, using a fake clock), weight, decimals, length, max                                                                            |
-| `VehicleSorter`           | 13 facts                | Four sort fields × asc/desc, fallback, case, empty input, tie-breaker                                                                                                |
-| `CategoryApiTests`        | 15 facts                | Section 6 via HTTP; create/split; delete/merge; duplicate names; 404s; validation 400s; inactive manufacturer; missing weight; malformed JSON; atomic bulk rejection |
-| `BulkCategoryUpdateTests` | 6 facts                 | Bulk replace; gap/overlap/empty rejection; edit-conflict 409; rename success                                                                                         |
+| Layer                     | Tests                   | What they cover                                                                                                                                                                                                     |
+| ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CategoryResolver`        | 8 theory rows + 1 fact  | Boundary values, null for empty config                                                                                                                                                                              |
+| `CategoryRangeValidator`  | 7 facts                 | Gap, overlap, missing zero start, unbounded top, empty set                                                                                                                                                          |
+| `CategoryRangeEditor`     | 7 facts + 3 theory rows | Split (create) and Remove (merge) — valid and rejected cases                                                                                                                                                        |
+| `VehicleValidator`        | 14 facts                | Owner, year (incl. 1886 / max / max+1, using a fake clock), weight, decimals, length, max                                                                                                                           |
+| `VehicleSorter`           | 13 facts                | Four sort fields × asc/desc, fallback, case, empty input, tie-breaker                                                                                                                                               |
+| `CategoryApiTests`        | 16 facts                | Section 6 via HTTP; create/split; delete/merge; duplicate names; 404s (incl. missing category with a duplicate name); validation 400s; inactive manufacturer; missing weight; malformed JSON; atomic bulk rejection |
+| `BulkCategoryUpdateTests` | 6 facts                 | Bulk replace; gap/overlap/empty rejection; edit-conflict 409; rename success                                                                                                                                        |
 
 Business rules are unit-tested directly in the domain layer. The API tests use
 `WebApplicationFactory<Program>` with an InMemory EF Core provider overriding

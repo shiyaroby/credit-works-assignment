@@ -61,10 +61,11 @@ public class CategoriesController : ControllerBase
         if (basic.Count > 0) return BadRequest(new { errors = basic });
 
         var all = await _db.VehicleCategories.ToListAsync();
-        var nameErrors = CategoryFieldValidator.ValidateNameUnique(req.Name, id, all);
-        if (nameErrors.Count > 0) return BadRequest(new { errors = nameErrors });
         var existing = all.FirstOrDefault(c => c.Id == id);
         if (existing is null) return NotFound();
+
+        var nameErrors = CategoryFieldValidator.ValidateNameUnique(req.Name, id, all);
+        if (nameErrors.Count > 0) return BadRequest(new { errors = nameErrors });
 
         var candidate = new VehicleCategory
         {

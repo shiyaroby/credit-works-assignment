@@ -511,33 +511,3 @@ appsettings.Production.json
 
 # OS
 .DS_Store
-# Build outputs
-bin/
-obj/
-out-tsc/
-dist/
-
-# Node
-node_modules/
-.npm/
-
-# Angular
-.angular/
-frontend/creditworks-ui/.angular/
-
-# VS
-.vs/
-*.user
-*.suo
-
-# SQL
-*.mdf
-*.ldf
-
-# Secrets (defensive — should never be committed)
-appsettings.Production.json
-.env
-.env.local
-
-# OS
-.DS_Store
